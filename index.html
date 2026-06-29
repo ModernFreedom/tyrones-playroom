@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tyrone's Playroom 💋</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #000; font-family: 'Georgia', serif; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+
+  #crosshair {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(255,240,200,0.0); border: 1px solid rgba(255,240,200,0.55);
+    transition: all .15s ease;
+  }
+  #crosshair.active {
+    width: 14px; height: 14px;
+    background: rgba(255,210,120,0.25); border-color: rgba(255,210,120,0.95);
+    box-shadow: 0 0 14px rgba(255,180,80,0.7);
+  }
+
+  #prompt {
+    position: absolute; left: 50%; top: 58%; transform: translateX(-50%);
+    color: #ffe9c0; font-size: 17px; letter-spacing: .5px;
+    text-shadow: 0 2px 8px #000, 0 0 18px rgba(255,160,60,.5);
+    opacity: 0; transition: opacity .2s ease; text-align: center;
+  }
+  #prompt.show { opacity: 1; }
+  #prompt .key {
+    display:inline-block; min-width:22px; padding:1px 7px; margin:0 2px;
+    border:1px solid #ffd089; border-radius:5px; color:#fff;
+    background:rgba(80,40,10,.6); font-family: monospace; font-size:15px;
+  }
+
+  #objective {
+    position:absolute; top:22px; left:24px; color:#e8d9b8;
+    font-size:14px; letter-spacing:.3px; text-shadow:0 2px 6px #000;
+    max-width: 320px; line-height:1.5;
+  }
+  #objective .t { color:#ffcf87; font-size:12px; text-transform:uppercase; letter-spacing:2px; opacity:.85; }
+  #objective .o { font-size:16px; margin-top:3px; }
+  #objective .o.done { color:#9adf9a; text-decoration: line-through; opacity:.7; }
+
+  #toast {
+    position:absolute; left:50%; top:34%; transform:translate(-50%,-50%) scale(.9);
+    color:#fff; font-size:30px; text-align:center; letter-spacing:1px;
+    text-shadow:0 3px 16px #000, 0 0 30px rgba(255,180,60,.7);
+    opacity:0; transition: all .5s cubic-bezier(.2,.9,.3,1.2); pointer-events:none;
+  }
+  #toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+  #vignette {
+    position:absolute; inset:0;
+    box-shadow: inset 0 0 220px 60px rgba(0,0,0,0.9);
+    pointer-events:none;
+  }
+
+  #overlay {
+    position: fixed; inset: 0; z-index: 30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background: radial-gradient(circle at 50% 40%, rgba(40,22,8,.55), rgba(0,0,0,.92));
+    color:#f0e3c6; text-align:center; cursor:pointer;
+    transition: opacity .4s ease;
+  }
+  #overlay h1 {
+    font-size: 52px; font-weight: normal; letter-spacing: 4px;
+    color:#ffd089; text-shadow: 0 4px 30px rgba(255,140,40,.5);
+    margin-bottom: 6px;
+  }
+  #overlay .sub { font-style: italic; color:#c9b48d; margin-bottom: 34px; font-size:18px; }
+  #overlay .play {
+    border:1px solid #ffcf87; padding:14px 40px; border-radius:40px;
+    font-size:18px; letter-spacing:2px; color:#fff;
+    background:rgba(120,60,15,.35); transition: all .2s ease;
+  }
+  #overlay:hover .play { background:rgba(180,95,25,.55); box-shadow:0 0 30px rgba(255,150,50,.5); }
+  #overlay .controls {
+    margin-top: 34px; font-size:13px; color:#a9966f; line-height:2; letter-spacing:1px;
+  }
+  #overlay .controls b { color:#e8d9b8; font-family:monospace; }
+  #overlay.hidden { opacity:0; pointer-events:none; }
+  #overlay.busy { cursor: wait; }
+  #overlay.busy .play { opacity:.5; }
+
+  #loadbar {
+    position:fixed; left:50%; bottom:70px; transform:translateX(-50%); z-index:31;
+    width:280px; height:3px; background:rgba(255,207,135,.15); border-radius:3px; overflow:hidden;
+  }
+  #loadbar i { display:block; height:100%; width:0%; background:#ffcf87; box-shadow:0 0 12px #ffae4a; transition:width .25s ease; }
+  #loadtext { position:fixed; left:50%; bottom:84px; transform:translateX(-50%); z-index:31;
+    color:#a9966f; font-size:12px; letter-spacing:2px; text-transform:uppercase; }
+
+  /* Tyrone dialogue box */
+  #dialogue {
+    position:fixed; left:50%; bottom:38px; transform:translateX(-50%); z-index:35;
+    width:min(680px,92vw);
+    background:linear-gradient(180deg, rgba(22,13,6,.97), rgba(8,5,3,.98));
+    border:1px solid rgba(255,180,90,.4); border-radius:14px; padding:16px 20px 14px;
+    box-shadow:0 12px 60px rgba(0,0,0,.85), 0 0 46px rgba(255,150,50,.16);
+    display:none; flex-direction:column; gap:10px; font-family:'Georgia',serif;
+  }
+  #dialogue.show { display:flex; }
+  #dialogue .nm { color:#ffcf87; letter-spacing:3px; font-size:14px; text-transform:uppercase;
+    display:flex; justify-content:space-between; align-items:center; }
+  #dialogue .nm .x { color:#9a8763; font-size:11px; letter-spacing:1px; }
+  #dialogue .log { max-height:34vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:6px; }
+  #dialogue .log::-webkit-scrollbar { width:6px; }
+  #dialogue .log::-webkit-scrollbar-thumb { background:rgba(255,180,90,.3); border-radius:3px; }
+  #dialogue .line { font-size:15px; line-height:1.5; }
+  #dialogue .line.ty { color:#efe2c5; }
+  #dialogue .line.ty b { color:#ffcf87; }
+  #dialogue .line.me { color:#a7cdeb; text-align:right; }
+  #dialogue .line.me b { color:#7fb0d8; }
+  #dialogue .row { display:flex; gap:8px; }
+  #dialogue input { flex:1; background:rgba(0,0,0,.5); border:1px solid rgba(255,180,90,.35);
+    border-radius:8px; padding:10px 12px; color:#fff; font-family:'Georgia',serif; font-size:15px; outline:none; }
+  #dialogue input:focus { border-color:#ffcf87; box-shadow:0 0 14px rgba(255,160,60,.3); }
+  #dialogue input::placeholder { color:#6e5f47; }
+  #dialogue .hint { color:#7a6a4d; font-size:11px; letter-spacing:1px; text-align:center; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <div id="objective">
+    <div class="t">Objective</div>
+    <div class="o" id="obj-text">Escape the forgotten cell. Find a way out.</div>
+  </div>
+  <div id="crosshair"></div>
+  <div id="prompt"></div>
+  <div id="toast"></div>
+  <div id="vignette"></div>
+</div>
+
+<div id="overlay" class="busy">
+  <h1>Tyrone's Playroom 💋</h1>
+  <div class="sub">— a dungeon you were never meant to leave —</div>
+  <div class="play">▶ ENTER</div>
+  <div class="controls">
+    <b>W A S D</b> move &nbsp;·&nbsp; <b>MOUSE</b> look &nbsp;·&nbsp; <b>SHIFT</b> sprint &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>ESC</b> release cursor
+  </div>
+</div>
+<div id="loadtext">Forging the dungeon…</div>
+<div id="loadbar"><i></i></div>
+
+<div id="dialogue">
+  <div class="nm"><span>TYRONE</span><span class="x">ESC to walk away</span></div>
+  <div class="log" id="dlg-log"></div>
+  <div class="row"><input id="dlg-input" type="text" placeholder="Say something to Tyrone…" autocomplete="off" maxlength="140" /></div>
+  <div class="hint">type and press ENTER to speak</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader.js';
+
+// ---------------------------------------------------------------------------
+//  RENDERER
+// ---------------------------------------------------------------------------
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+app.appendChild(renderer.domElement);
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x070504, 0.04);
+
+const camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.05, 100);
+camera.position.set(0, 1.65, 4);
+
+// ---------------------------------------------------------------------------
+//  LOADING MANAGER
+// ---------------------------------------------------------------------------
+const manager = new THREE.LoadingManager();
+const bar = document.querySelector('#loadbar i');
+const loadtext = document.getElementById('loadtext');
+const loadbarWrap = document.getElementById('loadbar');
+const overlay = document.getElementById('overlay');
+manager.onProgress = (url, loaded, total) => { bar.style.width = Math.round(loaded/total*100) + '%'; };
+manager.onLoad = () => {
+  loadtext.style.display = 'none'; loadbarWrap.style.display = 'none';
+  overlay.classList.remove('busy');
+  loadtext.textContent = '';
+};
+
+const texLoader = new THREE.TextureLoader(manager);
+const gltfLoader = new GLTFLoader(manager);
+// Draco decoder so we can load compressed avatars (the Ready Player Me model is Draco-packed)
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/');
+gltfLoader.setDRACOLoader(dracoLoader);
+
+// ---------------------------------------------------------------------------
+//  ENVIRONMENT MAP (HDRI -> PMREM) for realistic reflections on metal/gold
+// ---------------------------------------------------------------------------
+const pmrem = new THREE.PMREMGenerator(renderer);
+new RGBELoader(manager).load('assets/hdri/env_1k.hdr', (hdr) => {
+  const env = pmrem.fromEquirectangular(hdr).texture;
+  scene.environment = env;
+  hdr.dispose(); pmrem.dispose();
+});
+
+// ---------------------------------------------------------------------------
+//  PBR TEXTURE HELPER  (real Poly Haven scans: diff + nor_gl + arm + disp)
+// ---------------------------------------------------------------------------
+function loadMap(path, srgb){
+  const t = texLoader.load(path);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = MAX_ANISO;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// arm = (R)ambient-occlusion (G)roughness (B)metalness packed map
+function pbrMaps(name, rep){
+  const map  = loadMap(`assets/tex/${name}_diff.jpg`, true);
+  const nor  = loadMap(`assets/tex/${name}_nor.jpg`, false);
+  const arm  = loadMap(`assets/tex/${name}_arm.jpg`, false);
+  const disp = loadMap(`assets/tex/${name}_disp.jpg`, false);
+  for (const t of [map, nor, arm, disp]) t.repeat.set(rep, rep);
+  return { map, nor, arm, disp };
+}
+
+const ROOM = 14, HALF = ROOM/2, WALL_H = 5;
+
+const wallM  = pbrMaps('wall', 3);
+const floorM = pbrMaps('floor', 5);
+const woodM  = pbrMaps('wood', 2);
+const metalM = pbrMaps('metal', 2);
+
+// AO comes baked in the scanned 'arm' maps (R channel) -> use as aoMap on uv1,
+// which lets us drop the expensive screen-space GTAO pass entirely.
+const wallMat = new THREE.MeshStandardMaterial({
+  map: wallM.map, normalMap: wallM.nor, roughnessMap: wallM.arm, metalnessMap: wallM.arm,
+  aoMap: wallM.arm, aoMapIntensity: 1.0,
+  roughness: 1, metalness: 1, normalScale: new THREE.Vector2(1.3,1.3), envMapIntensity: 0.25,
+});
+const floorMat = new THREE.MeshStandardMaterial({
+  map: floorM.map, normalMap: floorM.nor, roughnessMap: floorM.arm, metalnessMap: floorM.arm,
+  aoMap: floorM.arm, aoMapIntensity: 1.0,
+  roughness: 1, metalness: 1, normalScale: new THREE.Vector2(1.1,1.1), envMapIntensity: 0.2,
+  displacementMap: floorM.disp, displacementScale: 0.05, displacementBias: -0.012,
+});
+const ceilMat = new THREE.MeshStandardMaterial({
+  map: wallM.map, normalMap: wallM.nor, roughnessMap: wallM.arm, aoMap: wallM.arm,
+  roughness: 1, metalness: 0, color: 0x777777, envMapIntensity: 0.15,
+});
+const ironMat = new THREE.MeshStandardMaterial({
+  map: metalM.map, normalMap: metalM.nor, roughnessMap: metalM.arm, metalnessMap: metalM.arm,
+  roughness: 0.7, metalness: 1, color: 0x6a6a72, envMapIntensity: 0.7,
+});
+
+// ---------------------------------------------------------------------------
+//  ROOM SHELL
+// ---------------------------------------------------------------------------
+// helper: give a geometry a uv1 set (== uv) so aoMap has coordinates
+function withUV1(geo){ geo.setAttribute('uv1', geo.attributes.uv); return geo; }
+
+const floor = new THREE.Mesh(withUV1(new THREE.PlaneGeometry(ROOM, ROOM, 64, 64)), floorMat);
+floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+
+const ceil = new THREE.Mesh(withUV1(new THREE.PlaneGeometry(ROOM, ROOM)), ceilMat);
+ceil.rotation.x = Math.PI/2; ceil.position.y = WALL_H; ceil.receiveShadow = true; scene.add(ceil);
+
+function wall(x, z, ry){
+  const m = new THREE.Mesh(withUV1(new THREE.PlaneGeometry(ROOM, WALL_H)), wallMat);
+  m.position.set(x, WALL_H/2, z); m.rotation.y = ry; m.receiveShadow = true; scene.add(m);
+}
+wall(0, -HALF, 0);
+wall(0,  HALF, Math.PI);
+wall(-HALF, 0, Math.PI/2);
+wall( HALF, 0, -Math.PI/2);
+
+// solid stone for pillars / door frame (less tiling)
+const stoneSolid = new THREE.MeshStandardMaterial({
+  map: wallM.map.clone(), normalMap: wallM.nor, roughnessMap: wallM.arm,
+  roughness: 1, metalness: 0, color: 0x9a948b, envMapIntensity: 0.2,
+});
+stoneSolid.map.repeat.set(1, 2);
+
+const colliders = [];
+function pillar(x, z){
+  const g = new THREE.Group();
+  const col = new THREE.Mesh(new THREE.BoxGeometry(0.8, WALL_H, 0.8), stoneSolid);
+  col.position.y = WALL_H/2; col.castShadow = true; col.receiveShadow = true; g.add(col);
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 1.1), stoneSolid);
+  cap.position.y = WALL_H-0.2; cap.castShadow = true; g.add(cap);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 1.1), stoneSolid);
+  base.position.y = 0.2; base.castShadow = true; g.add(base);
+  g.position.set(x, 0, z); scene.add(g);
+  colliders.push({ x, z, r:0.7 });
+}
+pillar(-HALF+1.2, -HALF+1.2); pillar(HALF-1.2, -HALF+1.2);
+pillar(-HALF+1.2,  HALF-1.2); pillar(HALF-1.2,  HALF-1.2);
+
+// barred prison gate (north wall) — the exit
+const doorGroup = new THREE.Group();
+const archFrame = new THREE.Mesh(new THREE.BoxGeometry(3.2, 4.2, 0.6), stoneSolid);
+archFrame.position.set(0, 2.1, -HALF+0.3); archFrame.castShadow = true; doorGroup.add(archFrame);
+const doorHole = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.4, 0.7), new THREE.MeshStandardMaterial({color:0x000000}));
+doorHole.position.set(0, 1.7, -HALF+0.28); doorGroup.add(doorHole);
+for (let i=0;i<6;i++){
+  const b = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,3.4,12), ironMat);
+  b.position.set(-1+i*0.4, 1.7, -HALF+0.36); b.castShadow = true; doorGroup.add(b);
+}
+for (let j=0;j<3;j++){
+  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.2,12), ironMat);
+  h.rotation.z = Math.PI/2; h.position.set(0, 0.4+j*1.3, -HALF+0.36); h.castShadow = true; doorGroup.add(h);
+}
+scene.add(doorGroup);
+
+// hanging chains
+const chainMat = new THREE.MeshStandardMaterial({ color:0x33333a, metalness:0.9, roughness:0.55, envMapIntensity:0.7 });
+function chain(x, z, len){
+  const g = new THREE.Group();
+  for (let i=0;i<len;i++){
+    const link = new THREE.Mesh(new THREE.TorusGeometry(0.06,0.022,6,10), chainMat);
+    link.position.y = WALL_H-0.2-i*0.1; link.rotation.x = Math.PI/2; link.rotation.z = (i%2)*Math.PI/2; g.add(link);
+  }
+  const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.12,0.03,8,14), ironMat);
+  cuff.position.y = WALL_H-0.2-len*0.1; g.add(cuff);
+  g.position.set(x, 0, z); scene.add(g);
+}
+chain(-HALF+0.4, -1.5, 18); chain(-HALF+0.4, 1.5, 14);
+
+// grim skull on the floor
+const skull = new THREE.Group();
+const boneMat = new THREE.MeshStandardMaterial({ color:0xcdc4ad, roughness:0.85, envMapIntensity:0.2 });
+const cran = new THREE.Mesh(new THREE.SphereGeometry(0.16,18,18), boneMat); cran.scale.set(1,1,1.15); skull.add(cran);
+const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.08,0.14), boneMat); jaw.position.set(0,-0.13,0.05); skull.add(jaw);
+const eMat = new THREE.MeshStandardMaterial({color:0x000000});
+const eL = new THREE.Mesh(new THREE.SphereGeometry(0.045,10,10), eMat); eL.position.set(-0.06,0.02,0.14); skull.add(eL);
+const eR = eL.clone(); eR.position.x = 0.06; skull.add(eR);
+skull.position.set(-2.2, 0.16, 2.6); skull.rotation.set(-0.3,0.6,0.1);
+skull.traverse(o=>o.castShadow = true); scene.add(skull);
+
+// scattered straw
+const strawMat = new THREE.MeshStandardMaterial({ color:0x8a7338, roughness:1, envMapIntensity:0.1 });
+for (let i=0;i<70;i++){
+  const s = new THREE.Mesh(new THREE.BoxGeometry(0.02,0.005,0.3+Math.random()*0.3), strawMat);
+  s.position.set((Math.random()-0.5)*ROOM*0.82, 0.012, (Math.random()-0.5)*ROOM*0.82);
+  s.rotation.y = Math.random()*Math.PI; s.receiveShadow = true; scene.add(s);
+}
+
+// ---------------------------------------------------------------------------
+//  glTF PROP LOADER + AUTO PLACER
+// ---------------------------------------------------------------------------
+function enableShadows(model){
+  model.traverse(o=>{
+    if (o.isMesh){
+      o.castShadow = true; o.receiveShadow = true;
+      if (o.material){ o.material.envMapIntensity = 0.5; }
+    }
+  });
+}
+function loadModel(slug){
+  return new Promise((res, rej)=>
+    gltfLoader.load(`assets/models/${slug}/${slug}_1k.gltf`, g=>res(g.scene), undefined, rej));
+}
+// scale-to-fit, sit on floor, center at (x,z), add collider
+function place(model, o){
+  enableShadows(model);
+  model.rotation.set(o.rx||0, o.ry||0, o.rz||0);
+  let box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3(); box.getSize(size);
+  let s = 1;
+  if (o.height) s = o.height/size.y;
+  else if (o.maxDim) s = o.maxDim/Math.max(size.x,size.y,size.z);
+  if (o.scale) s = o.scale;
+  model.scale.setScalar(s);
+  box = new THREE.Box3().setFromObject(model);
+  const c = new THREE.Vector3(); box.getCenter(c);
+  model.position.x += (o.x||0) - c.x;
+  model.position.z += (o.z||0) - c.z;
+  model.position.y += (o.y||0) - box.min.y;
+  scene.add(model);
+  const fin = new THREE.Vector3(); new THREE.Box3().setFromObject(model).getSize(fin);
+  if (o.collide !== false) colliders.push({ x:o.x||0, z:o.z||0, r:Math.max(fin.x,fin.z)*0.5*(o.cr ?? 0.9) });
+  return { model, top:(o.y||0)+fin.y, size:fin };
+}
+
+// ---------------------------------------------------------------------------
+//  GOLD HOARD (revealed when chest opens)
+// ---------------------------------------------------------------------------
+const goldGroup = new THREE.Group(); goldGroup.visible = false;
+const goldMat = new THREE.MeshStandardMaterial({ color:0xffcf3a, metalness:1, roughness:0.22, emissive:0x4a2e00, envMapIntensity:1.0 });
+for (let i=0;i<46;i++){
+  const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,0.018,14), goldMat);
+  coin.position.set((Math.random()-0.5)*0.55, Math.random()*0.16, (Math.random()-0.5)*0.32);
+  coin.rotation.set(Math.random(),Math.random(),Math.random()); coin.castShadow = true; goldGroup.add(coin);
+}
+const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.11),
+  new THREE.MeshStandardMaterial({ color:0x49ddff, emissive:0x0c3a4a, metalness:0.2, roughness:0.05, envMapIntensity:1 }));
+gem.position.set(0,0.13,0); goldGroup.add(gem);
+goldGroup.position.set(0, 0.18, -2.2); scene.add(goldGroup);
+const goldLight = new THREE.PointLight(0xffc24a, 0, 4, 2); goldLight.position.set(0,0.55,-2.2); scene.add(goldLight);
+
+// ---------------------------------------------------------------------------
+//  LOAD & PLACE PROPS
+// ---------------------------------------------------------------------------
+let chestLidPivot = null, chestReady = false;
+const lanternLights = [];
+
+Promise.allSettled([
+  // hero chest
+  loadModel('treasure_chest').then(m=>{
+    place(m, { x:0, z:-2.2, ry:0, height:0.72, cr:0.85 });
+    let lid = null; m.traverse(o=>{ if (o.name === 'treasure_chest_lid') lid = o; });
+    if (lid){
+      const lb = new THREE.Box3().setFromObject(lid);
+      chestLidPivot = new THREE.Group();
+      chestLidPivot.position.set((lb.min.x+lb.max.x)/2, lb.min.y, lb.min.z);
+      scene.add(chestLidPivot);
+      chestLidPivot.attach(lid);
+    }
+    chestReady = true;
+  }),
+  // barrels
+  loadModel('wine_barrel_01').then(m=> place(m, { x:-HALF+2, z:HALF-2, ry:0.4, height:0.9 })),
+  loadModel('wine_barrel_01').then(m=> place(m, { x:-HALF+3, z:HALF-2.5, ry:-0.7, height:0.86 })),
+  // crates (a stack)
+  loadModel('wooden_crate_02').then(m=> place(m, { x:HALF-2, z:HALF-2.3, ry:0.25, height:0.85 })),
+  loadModel('wooden_crate_01').then(m=> place(m, { x:HALF-2.2, z:HALF-3.6, ry:-0.5, height:0.8 })),
+  loadModel('wooden_crate_02').then(m=> place(m, { x:HALF-2.05, z:HALF-2.3, ry:0.8, height:0.6, y:0.85, collide:false })),
+  // lantern on a crate (with its own warm light)
+  loadModel('wooden_lantern_01').then(m=>{
+    const r = place(m, { x:HALF-2.05, z:HALF-2.3, ry:0.3, height:0.42, y:1.45, collide:false });
+    const ll = new THREE.PointLight(0xffb454, 6, 6, 2);
+    ll.position.set(HALF-2.05, 1.75, HALF-2.3); ll.castShadow = false; scene.add(ll);
+    lanternLights.push({ light: ll, base: 6 });
+  }),
+  // bucket
+  loadModel('wooden_bucket_01').then(m=> place(m, { x:-HALF+2.4, z:HALF-3.1, ry:0.6, height:0.36 })),
+  // medieval mace lying on the floor near the skull
+  loadModel('ornate_medieval_mace').then(m=> place(m, { x:-1.7, z:2.7, rx:Math.PI/2, ry:0.5, maxDim:0.75, collide:false })),
+  // rubble rocks
+  loadModel('rock_07').then(m=> place(m, { x:HALF-1.6, z:-HALF+2.4, ry:1.1, maxDim:0.7 })),
+  loadModel('rock_07').then(m=> place(m, { x:HALF-2.3, z:-HALF+1.9, ry:2.4, maxDim:0.45 })),
+]).then(results=>{
+  const failed = results.filter(r=>r.status==='rejected');
+  if (failed.length) console.warn('Some props failed to load:', failed.map(f=>f.reason));
+});
+
+
+function makeLabel(text){
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const x = c.getContext('2d');
+  x.font = 'bold 38px Georgia'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.shadowColor = 'rgba(0,0,0,1)'; x.shadowBlur = 10; x.fillStyle = '#ffd089';
+  x.fillText(text, 128, 34);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAX_ANISO;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:t, transparent:true, depthWrite:false }));
+  s.scale.set(0.95, 0.24, 1);
+  return s;
+}
+
+// Tyrone — a hand-built 50-year-old street character: deep brown skin,
+// salt-and-pepper beard, hoodie + tracksuit, gold chain, fitted cap, shades.
+function buildTyrone(){
+  const g = new THREE.Group();
+  const skin   = new THREE.MeshStandardMaterial({ color:0x5a3a28, roughness:0.55, envMapIntensity:0.25 });
+  const beardM = new THREE.MeshStandardMaterial({ color:0x837f77, roughness:0.96 });        // salt & pepper
+  const hoodie = new THREE.MeshStandardMaterial({ color:0x191a20, roughness:0.9, envMapIntensity:0.15 });
+  const jogger = new THREE.MeshStandardMaterial({ color:0x141519, roughness:0.92 });
+  const red    = new THREE.MeshStandardMaterial({ color:0x8c1f27, roughness:0.7 });          // tracksuit stripes
+  const white  = new THREE.MeshStandardMaterial({ color:0xe9e7dd, roughness:0.5, envMapIntensity:0.3 });
+  const sole   = new THREE.MeshStandardMaterial({ color:0x202024, roughness:0.7 });
+  const gold   = new THREE.MeshStandardMaterial({ color:0xffcf3a, metalness:1, roughness:0.22, envMapIntensity:1 });
+  const glass  = new THREE.MeshStandardMaterial({ color:0x070709, roughness:0.3, metalness:0.25, envMapIntensity:0.7 });
+  const capM   = new THREE.MeshStandardMaterial({ color:0x101218, roughness:0.72, envMapIntensity:0.2 });
+
+  const ball = (r,m)=>new THREE.Mesh(new THREE.SphereGeometry(r,18,14), m);
+  const cap2 = (r,l,m)=>new THREE.Mesh(new THREE.CapsuleGeometry(r,l,6,14), m);
+  const box  = (w,h,d,m)=>new THREE.Mesh(new THREE.BoxGeometry(w,h,d), m);
+  const at   = (mesh,x,y,z)=>{ mesh.position.set(x,y,z); return mesh; };
+
+  // feet / sneakers
+  function shoe(x){
+    const s = new THREE.Group();
+    s.add(at(box(0.14,0.05,0.32,sole),0,0.025,0.03));
+    s.add(at(box(0.125,0.1,0.2,white),0,0.1,-0.02));
+    const toe = ball(0.075,white); toe.scale.set(1,0.78,1.1); s.add(at(toe,0,0.07,0.12));
+    return at(s, x,0,0.03);
+  }
+  g.add(shoe(-0.14), shoe(0.14));
+
+  // legs (joggers) with ankle cuffs
+  function leg(x){
+    const l = new THREE.Group();
+    l.add(at(ball(0.062,jogger),0,0.14,0.02));
+    l.add(at(cap2(0.088,0.26,jogger),0,0.32,0.01));
+    l.add(at(ball(0.092,jogger),0,0.52,0));
+    l.add(at(cap2(0.108,0.28,jogger),0,0.73,0));
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.095,0.092,0.06,16), red); l.add(at(cuff,0,0.18,0.01));
+    return at(l, x,0,0);
+  }
+  g.add(leg(-0.14), leg(0.14));
+
+  // pelvis
+  const hips = ball(0.19,jogger); hips.scale.set(0.98,0.62,0.74); g.add(at(hips,0,0.97,0));
+
+  // torso (hoodie) — heavier 50yo build
+  const chest = ball(0.235,hoodie); chest.scale.set(1.2,0.95,0.86); g.add(at(chest,0,1.3,0));      // animated (breathing)
+  const midriff = cap2(0.2,0.2,hoodie); midriff.scale.set(1.18,1,0.84); g.add(at(midriff,0,1.13,0));
+  const belly = ball(0.17,hoodie); belly.scale.set(1.15,0.95,0.95); g.add(at(belly,0,1.05,0.07));
+  // hood bunched at the back of the neck
+  const hood = new THREE.Mesh(new THREE.TorusGeometry(0.14,0.055,10,20), hoodie); hood.rotation.x = Math.PI/2; g.add(at(hood,0,1.46,-0.05));
+  const hoodFlap = new THREE.Mesh(new THREE.SphereGeometry(0.17,16,12,0,Math.PI*2,0,Math.PI*0.55), hoodie);
+  hoodFlap.rotation.x = 0.8; g.add(at(hoodFlap,0,1.5,-0.14));
+  // zip + front pocket
+  g.add(at(box(0.025,0.5,0.02,jogger),0,1.18,0.18));
+  const pocket = box(0.34,0.16,0.06,hoodie); g.add(at(pocket,0,1.02,0.15));
+
+  // shoulders + arms
+  function arm(sx){
+    const a = new THREE.Group();
+    a.add(at(ball(0.11,hoodie),0,0,0));                         // shoulder
+    a.add(at(cap2(0.082,0.24,hoodie),0,-0.16,0));               // upper arm
+    a.add(at(ball(0.072,hoodie),0,-0.31,0.01));                 // elbow
+    a.add(at(cap2(0.07,0.22,hoodie),0,-0.45,0.03));             // forearm
+    a.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.07,0.05,14),red),0,-0.575,0.04)); // cuff
+    const hand = ball(0.075,skin); hand.scale.set(1,1.15,0.85); a.add(at(hand,0,-0.64,0.05));    // hand/fist
+    // tracksuit stripe down the outer sleeve
+    const stripe = box(0.022,0.42,0.022,red); a.add(at(stripe, sx*0.085,-0.22,0.03));
+    a.position.set(sx*0.27,1.37,0);
+    a.rotation.z = sx*0.2; a.rotation.x = 0.05;
+    return a;
+  }
+  const lArm = arm(-1), rArm = arm(1); g.add(lArm, rArm);
+
+  // gold chain + medallion on the chest
+  const chain = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.135,0.018,8,28), gold); ring.rotation.x = Math.PI/2.1; chain.add(at(ring,0,1.45,0.07));
+  for (let i=0;i<7;i++){ const t=i/6; const lk=ball(0.022,gold); chain.add(at(lk, (t-0.5)*0.16, 1.45-Math.sin(t*Math.PI)*0.12, 0.12+Math.sin(t*Math.PI)*0.03)); }
+  const medal = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.016,18), gold); medal.rotation.x = Math.PI/2; chain.add(at(medal,0,1.3,0.17));
+  g.add(chain);
+
+  // neck
+  g.add(at(cap2(0.07,0.12,skin),0,1.54,0));
+
+  // head
+  const head = new THREE.Group(); head.position.set(0,1.66,0);
+  const skull = ball(0.135,skin); skull.scale.set(1,1.16,1.05); head.add(skull);
+  head.add(at(box(0.17,0.03,0.04,skin),0,0.05,0.115));                 // brow ridge
+  const nose = box(0.04,0.075,0.055,skin); nose.rotation.x = 0.25; head.add(at(nose,0,-0.015,0.14));
+  for (const ex of [-1,1]){ const ear = ball(0.038,skin); ear.scale.set(0.45,1,0.8); head.add(at(ear, ex*0.138,0.0,0.0)); }
+  // salt & pepper beard (lower hemisphere) + moustache + sideburns
+  const beard = new THREE.Mesh(new THREE.SphereGeometry(0.143,20,16,0,Math.PI*2,Math.PI*0.46,Math.PI*0.6), beardM);
+  beard.scale.set(1.0,1.16,1.06); head.add(at(beard,0,-0.005,0.005));
+  head.add(at(box(0.11,0.028,0.04,beardM),0,-0.055,0.12));             // moustache
+  for (const ex of [-1,1]) head.add(at(box(0.03,0.14,0.04,beardM), ex*0.12,0.0,0.05)); // sideburns
+  // shades
+  head.add(at(box(0.27,0.05,0.04,glass),0,0.025,0.118));              // bridge/frame
+  for (const ex of [-1,1]){ const lens = box(0.105,0.075,0.03,glass); head.add(at(lens, ex*0.073,0.025,0.135)); }
+  // fitted cap
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(0.152,20,16,0,Math.PI*2,0,Math.PI*0.58), capM);
+  crown.scale.set(1.05,0.85,1.08); head.add(at(crown,0,0.075,0));
+  const brim = box(0.25,0.022,0.15,capM); brim.rotation.x = -0.18; head.add(at(brim,0,0.055,0.145));
+  g.add(head);
+
+  g.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+  g.userData = { chest, head, lArm, rArm, headBaseY: head.position.y };
+  return g;
+}
+
+const TYRONE_POS = new THREE.Vector3(-4.4, 0, -0.6);
+let tyroneMixer = null;
+// Drop a realistic rigged model at assets/models/man/tyrone.glb (e.g. a Ready
+// Player Me / Mixamo export — Y-up, ~1.8 m, feet at origin) and it auto-replaces
+// the hand-built stylized character below.
+let tyrone = buildTyrone();
+tyrone.position.set(TYRONE_POS.x, 0, TYRONE_POS.z);
+tyrone.rotation.y = Math.PI/2;
+scene.add(tyrone);
+if (window.__dbg) window.__dbg.tyrone = tyrone;
+gltfLoader.load('assets/models/man/tyrone.glb', (gltf)=>{
+  const m = gltf.scene;
+  m.updateWorldMatrix(true, true);
+  let box = new THREE.Box3().setFromObject(m); const s = new THREE.Vector3(); box.getSize(s);
+  const sc = (s.y > 0.5 && s.y < 5) ? 1.82 / s.y : 1;   // guard against unreliable skinned bbox
+  m.scale.multiplyScalar(sc);
+  m.updateWorldMatrix(true, true); box = new THREE.Box3().setFromObject(m);
+  const c = new THREE.Vector3(); box.getCenter(c);
+  m.position.set(TYRONE_POS.x - c.x, -box.min.y, TYRONE_POS.z - c.z);
+  m.rotation.y = Math.PI/2;
+  m.traverse(o=>{
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true;
+    let mat = o.material;
+    if (mat && mat.isMeshBasicMaterial){            // KHR_materials_unlit -> make him react to torchlight
+      const std = new THREE.MeshStandardMaterial({ map: mat.map || null, color: mat.color.clone(), roughness: 0.8, metalness: 0.0 });
+      std.transparent = mat.transparent; std.alphaTest = mat.alphaTest; std.side = mat.side; std.envMapIntensity = 0.4; std.name = mat.name;
+      if (std.map) std.map.colorSpace = THREE.SRGBColorSpace;
+      o.material = mat = std;
+    } else if (mat){ mat.envMapIntensity = 0.45; mat.roughness = Math.max(mat.roughness ?? 0.6, 0.6); }
+    // restyle: dark street clothes + deep-brown skin so Tyrone reads as a Black man
+    if (mat){
+      const nm = mat.name || '';
+      if (/Body/.test(nm) && !/Shoes/.test(nm)) mat.color.multiplyScalar(0.3);        // street blacks
+      else if (/skin/i.test(nm)) mat.color.multiply(new THREE.Color(0x5c3a26));       // deep brown skin tone
+    }
+  });
+  m.updateWorldMatrix(true, true);
+  // --- gangster gear: gold chain + fitted cap + shades, placed in model space ---
+  const gold = new THREE.MeshStandardMaterial({ color:0xffcf3a, metalness:1, roughness:0.22, envMapIntensity:1 });
+  const blk  = new THREE.MeshStandardMaterial({ color:0x0b0b0d, roughness:0.45, metalness:0.2, envMapIntensity:0.5 });
+  const lens = new THREE.MeshStandardMaterial({ color:0x050506, roughness:0.15, metalness:0.4, envMapIntensity:0.9 });
+  // three.js strips ':' from bone names (mixamorig2:Head -> mixamorig2Head), so match by suffix
+  let headB = null, neckB = null;
+  m.traverse(o=>{
+    if (/Head$/.test(o.name) && !/HeadTop/i.test(o.name)) headB = o;
+    else if (/Neck$/.test(o.name)) neckB = o;
+  });
+  if (!neckB) m.traverse(o=>{ if (/Spine2$/.test(o.name)) neckB = o; });
+  const toLocal = (bone)=>{ const w = new THREE.Vector3(); bone.getWorldPosition(w); return m.worldToLocal(w); };
+  if (headB){
+    const hg = new THREE.Group(); hg.position.copy(toLocal(headB)); hg.scale.setScalar(1/sc); m.add(hg);
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.118,20,14,0,Math.PI*2,0,Math.PI*0.55), blk); crown.scale.set(1.08,0.82,1.16); crown.position.set(0,0.1,0.0); hg.add(crown);
+    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.02,0.13), blk); brim.position.set(0,0.082,0.115); brim.rotation.x = -0.18; hg.add(brim);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.042,0.03), blk); frame.position.set(0,0.045,0.092); hg.add(frame);
+    for (const ex of [-1,1]){ const L = new THREE.Mesh(new THREE.BoxGeometry(0.074,0.052,0.022), lens); L.position.set(ex*0.047,0.045,0.101); hg.add(L); }
+    hg.traverse(o=>{ if (o.isMesh) o.castShadow = true; });
+  }
+  if (neckB){
+    const cg = new THREE.Group(); cg.position.copy(toLocal(neckB)); cg.scale.setScalar(1/sc); m.add(cg);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11,0.016,8,30), gold); ring.rotation.x = Math.PI/2; ring.scale.set(1,1,0.7); ring.position.set(0,-0.08,0.04); cg.add(ring);
+    const med  = new THREE.Mesh(new THREE.CylinderGeometry(0.042,0.042,0.014,18), gold); med.rotation.x = Math.PI/2; med.position.set(0,-0.21,0.085); cg.add(med);
+    cg.traverse(o=>{ if (o.isMesh) o.castShadow = true; });
+  }
+  scene.remove(tyrone); scene.add(m); tyrone = m;     // swap stand-in for the real model
+  if (window.__dbg) window.__dbg.tyrone = m;
+  // idle animation lives in a separate clip file on the same skeleton
+  gltfLoader.load('assets/models/man/anims.glb', (ag)=>{
+    const idle = ag.animations.find(a=>/idle/i.test(a.name)) || ag.animations[0];
+    if (idle){ tyroneMixer = new THREE.AnimationMixer(m); tyroneMixer.clipAction(idle).play(); }
+  }, undefined, ()=>{});
+}, undefined, ()=>{ /* no realistic model supplied — keep the stylized build */ });
+const tyroneLabel = makeLabel('TYRONE');
+tyroneLabel.position.set(TYRONE_POS.x, 2.05, TYRONE_POS.z);
+scene.add(tyroneLabel);
+colliders.push({ x:TYRONE_POS.x, z:TYRONE_POS.z, r:0.5 });
+// a soft warm key light, set in front of him so his face/shades read to the player
+const tyroneLight = new THREE.PointLight(0xffdca6, 4.5, 6, 2);
+tyroneLight.position.set(TYRONE_POS.x+1.2, 1.7, TYRONE_POS.z+0.7); scene.add(tyroneLight);
+
+// ---------------------------------------------------------------------------
+//  TORCHES (real-time flicker lights + additive flame)
+// ---------------------------------------------------------------------------
+scene.add(new THREE.AmbientLight(0x241d28, 0.4));
+const fillLight = new THREE.DirectionalLight(0x44558f, 0.18);
+fillLight.position.set(0,7,-12); scene.add(fillLight);
+
+const torches = [];
+function torch(x, z, ry, castShadow){
+  const g = new THREE.Group();
+  const bracket = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.5,8), ironMat);
+  bracket.rotation.z = Math.PI*0.13; bracket.position.set(0,0,0.12); bracket.castShadow = true; g.add(bracket);
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.06,0.16,12), ironMat);
+  cup.position.set(0,0.22,0.22); cup.castShadow = true; g.add(cup);
+  const flameMat = new THREE.MeshBasicMaterial({ color:0xffb24a, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false });
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.12,0.45,14), flameMat); flame.position.set(0,0.5,0.22); g.add(flame);
+  const core = new THREE.Mesh(new THREE.ConeGeometry(0.06,0.3,12),
+    new THREE.MeshBasicMaterial({ color:0xfff0c0, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false }));
+  core.position.set(0,0.46,0.22); g.add(core);
+  const light = new THREE.PointLight(0xffa040, 16, 12, 1.9);
+  light.position.set(0,0.55,0.45);
+  // Point-light shadows are the heaviest thing in the scene (a cube render each).
+  // Only two torches cast them — plenty for mood, far cheaper.
+  if (castShadow){
+    light.castShadow = true;
+    light.shadow.mapSize.set(512,512); light.shadow.camera.near = 0.1; light.shadow.camera.far = 13; light.shadow.bias = -0.004;
+  }
+  g.add(light);
+  g.position.set(x, 3.2, z); g.rotation.y = ry; scene.add(g);
+  torches.push({ light, flame, core, base:16, x, z });
+}
+torch(0, -HALF+0.42, 0, true);
+torch(0,  HALF-0.42, Math.PI, false);
+torch(-HALF+0.42, 0, Math.PI/2, true);
+torch( HALF-0.42, 0, -Math.PI/2, false);
+
+// dust motes
+const dustGeo = new THREE.BufferGeometry();
+const dustN = 420, dpos = new Float32Array(dustN*3);
+for (let i=0;i<dustN;i++){ dpos[i*3]=(Math.random()-0.5)*ROOM; dpos[i*3+1]=Math.random()*WALL_H; dpos[i*3+2]=(Math.random()-0.5)*ROOM; }
+dustGeo.setAttribute('position', new THREE.BufferAttribute(dpos,3));
+const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color:0xffe0b0, size:0.02, transparent:true, opacity:0.4, depthWrite:false }));
+scene.add(dust);
+
+// ---------------------------------------------------------------------------
+//  POST-PROCESSING: Bloom + gamma  (AO is baked into the materials' aoMap)
+// ---------------------------------------------------------------------------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.75, 0.6, 0.74);
+composer.addPass(bloom);
+composer.addPass(new ShaderPass(GammaCorrectionShader));
+
+// ---------------------------------------------------------------------------
+//  CONTROLS + COLLISION
+// ---------------------------------------------------------------------------
+let inDialogue = false;
+const controls = new PointerLockControls(camera, renderer.domElement);
+overlay.addEventListener('click', ()=>{ if (!overlay.classList.contains('busy')) controls.lock(); });
+controls.addEventListener('lock',   ()=> overlay.classList.add('hidden'));
+controls.addEventListener('unlock', ()=>{ if (inDialogue) return; overlay.classList.remove('hidden'); });
+
+const keys = {};
+addEventListener('keydown', e=>{
+  if (inDialogue){ if (e.code==='Escape') closeDialogue(); return; }
+  keys[e.code]=true;
+  if (e.code==='KeyE') tryInteract();
+});
+addEventListener('keyup',   e=>{ keys[e.code]=false; });
+
+const velocity = new THREE.Vector3(), dir = new THREE.Vector3();
+const PLAYER_R = 0.35;
+function collide(nx, nz){
+  const lim = HALF - 0.5;
+  nx = Math.max(-lim, Math.min(lim, nx));
+  nz = Math.max(-lim, Math.min(lim, nz));
+  for (const c of colliders){
+    const dx=nx-c.x, dz=nz-c.z, d=Math.hypot(dx,dz), min=c.r+PLAYER_R;
+    if (d<min && d>1e-4){ nx=c.x+dx/d*min; nz=c.z+dz/d*min; }
+  }
+  return [nx, nz];
+}
+
+// ---------------------------------------------------------------------------
+//  INTERACTION + OBJECTIVE
+// ---------------------------------------------------------------------------
+let chestOpen=false, gameWon=false;
+const prompt = document.getElementById('prompt');
+const crosshair = document.getElementById('crosshair');
+const toast = document.getElementById('toast');
+const objText = document.getElementById('obj-text');
+function showToast(msg, ms=2600){ toast.textContent=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), ms); }
+function nearChest(){ return Math.hypot(camera.position.x-0, camera.position.z+2.2) < 2.3; }
+function nearDoor(){ return camera.position.z < -HALF+2.7 && Math.abs(camera.position.x) < 1.7; }
+function nearTyrone(){ return Math.hypot(camera.position.x-TYRONE_POS.x, camera.position.z-TYRONE_POS.z) < 2.4; }
+
+// --- Tyrone's dialogue brain (offline, keyword-matched, in-character) ---
+const TYRONE = {
+  met: false, i: 0,
+  greetFirst: "Well, well... fresh meat. Name's Tyrone. I ran the streets up top once — now I run this here cell. You lookin' for a way out, youngblood?",
+  greetBack:  "Back again? Talk to me, playa. What you need.",
+  rules: [
+    { k:['key'], r:"The key you're after is sittin' in that chest over yonder. Pop it open and it's yours — then that gate'll let you through." },
+    { k:['chest','gold','hoard','treasure','loot'], r:"That old chest? Packed with gold AND the iron key, both. Take what you need... but greed's gotten better men than you killed down here." },
+    { k:['gate','door','escape','out','leave','exit','free','freedom'], r:"Only way outta here is that barred gate, north wall. Locked up tight 'til you got the key. No key, no freedom — that's the rule of the cell." },
+    { k:['who','name','yourself','tyrone'], r:"Tyrone. Fifty years old, half of 'em in the game, the other half in cold cells like this. They used to call me the King of the Underground." },
+    { k:['help','how','what do','stuck','lost'], r:"Listen close, youngblood: open the chest, grab the key, walk it to the gate. Simple. I'd do it myself but these old bones are done runnin'." },
+    { k:['old','age','fifty','50','years'], r:"Fifty winters on this earth. I've watched kings rise and crews fall, all from down here in the dark. Age ain't nothin' but scars and stories." },
+    { k:['hello','hey','yo','hi','sup','wassup','what up','whats up'], r:"Yo. You holdin' up alright? Keep your wits about you down here, it ain't kind." },
+    { k:['scared','afraid','fear','danger'], r:"Fear keeps you breathin'. Just don't let it freeze you up — move smart, move quiet, and you'll see daylight again." },
+    { k:['gang','crew','boss','og','respect','street'], r:"I had a crew once. Loyal soldiers, every last one. All gone now. Out here it's just me, the rats, and the cold stone. Respect's all I got left." },
+    { k:['thank','thanks','appreciate'], r:"Don't mention it. Watch your back out there — and remember who showed you the way." },
+    { k:['food','eat','hungry','water','drink'], r:"Ain't no room service in the dungeon, playa. Crack that chest and buy yourself a feast once you're topside." },
+    { k:['skull','dead','bones','body','die','died'], r:"That skull on the floor? Last fella who rushed the gate without the key. Don't go bein' like him, now." },
+    { k:['torch','dark','light','cold'], r:"Them torches are the only friends you get down here. When they gutter out... that's when the dark starts talkin' back." },
+  ],
+  fallbacks: [
+    "Mm. You talk a lot for a man still locked in a cell.",
+    "I hear you. But that chest and that gate — that's where your head needs to be, youngblood.",
+    "Down here, words come cheap. Action's the only thing that buys your freedom.",
+    "Heh. You're alright, kid. Now go on — that key ain't gonna grab itself.",
+    "Stay sharp. These walls got ears, and not every one of 'em is friendly.",
+  ],
+};
+function tyroneReply(text){
+  const s = text.toLowerCase();
+  for (const rule of TYRONE.rules){ if (rule.k.some(k=>s.includes(k))) return rule.r; }
+  return TYRONE.fallbacks[(TYRONE.i++) % TYRONE.fallbacks.length];
+}
+
+const dlg = document.getElementById('dialogue');
+const dlgLog = document.getElementById('dlg-log');
+const dlgInput = document.getElementById('dlg-input');
+function addLine(who, text){
+  const d = document.createElement('div');
+  d.className = 'line ' + (who==='ty' ? 'ty' : 'me');
+  d.innerHTML = (who==='ty' ? '<b>Tyrone:</b> ' : '<b>You:</b> ') + text.replace(/</g,'&lt;');
+  dlgLog.appendChild(d); dlgLog.scrollTop = dlgLog.scrollHeight;
+}
+function openDialogue(){
+  if (inDialogue) return;
+  inDialogue = true;
+  for (const k in keys) keys[k] = false;
+  dlg.classList.add('show');
+  addLine('ty', TYRONE.met ? TYRONE.greetBack : TYRONE.greetFirst);
+  TYRONE.met = true;
+  if (controls.isLocked) controls.unlock();
+  setTimeout(()=> dlgInput.focus(), 60);
+}
+function closeDialogue(){
+  if (!inDialogue) return;
+  inDialogue = false;
+  dlg.classList.remove('show'); dlgInput.blur(); dlgInput.value = '';
+  for (const k in keys) keys[k] = false;
+  overlay.classList.add('hidden');
+  controls.lock();
+  // safety: if pointer-lock didn't re-engage, show the resume screen
+  setTimeout(()=>{ if (!controls.isLocked) overlay.classList.remove('hidden'); }, 220);
+}
+dlgInput.addEventListener('keydown', e=>{
+  e.stopPropagation();
+  if (e.code === 'Enter'){
+    const v = dlgInput.value.trim();
+    if (v){ addLine('me', v); dlgInput.value = ''; setTimeout(()=> addLine('ty', tyroneReply(v)), 280); }
+  } else if (e.code === 'Escape'){ closeDialogue(); }
+});
+
+function tryInteract(){
+  if (!controls.isLocked) return;
+  if (nearTyrone()){ openDialogue(); return; }
+  if (nearChest() && !chestOpen){
+    chestOpen = true;
+    showToast('✦  YOU FOUND THE LOST HOARD  ✦');
+    goldGroup.visible = true;
+    objText.textContent = 'Take the iron key — then reach the barred gate.';
+    return;
+  }
+  if (nearDoor()){
+    if (!chestOpen){ showToast('The gate is locked. Find a key…', 1800); return; }
+    if (!gameWon){
+      gameWon = true;
+      objText.textContent = 'You escaped the forgotten cell.';
+      objText.classList.add('done');
+      showToast('🔑  THE GATE GROANS OPEN — YOU ESCAPE  🔑', 6000);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+//  LOOP
+// ---------------------------------------------------------------------------
+const clock = new THREE.Clock();
+let lidAngle = 0;
+function frame(){
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+
+  if (controls.isLocked){
+    const sprint = (keys['ShiftLeft']||keys['ShiftRight']) ? 1.8 : 1.0;
+    const speed = 3.2*sprint;
+    dir.set(0,0,0);
+    if (keys['KeyW']) dir.z += 1;
+    if (keys['KeyS']) dir.z -= 1;
+    if (keys['KeyA']) dir.x -= 1;
+    if (keys['KeyD']) dir.x += 1;
+    dir.normalize();
+    velocity.x = dir.x*speed; velocity.z = dir.z*speed;
+    controls.moveRight(velocity.x*dt);
+    controls.moveForward(velocity.z*dt);
+    const [cx,cz] = collide(camera.position.x, camera.position.z);
+    camera.position.x = cx; camera.position.z = cz;
+    const moving = velocity.length() > 0.1;
+    camera.position.y = 1.65 + (moving ? Math.sin(t*10*sprint)*0.035 : 0);
+  }
+
+  for (const to of torches){
+    const f = 0.75 + Math.sin(t*13+to.x)*0.12 + Math.sin(t*27.3+to.z)*0.08 + (Math.random()-0.5)*0.18;
+    to.light.intensity = to.base*Math.max(0.45, f);
+    const sc = 0.85 + f*0.3;
+    to.flame.scale.set(sc, sc*(0.9+Math.sin(t*20+to.x)*0.15), sc);
+    to.core.scale.y = 0.9 + Math.sin(t*24+to.z)*0.2;
+    to.flame.rotation.y = Math.sin(t*8+to.x)*0.1;
+  }
+  for (const la of lanternLights){ la.light.intensity = la.base*(0.85 + Math.sin(t*9+1.7)*0.12 + (Math.random()-0.5)*0.1); }
+
+  // Tyrone turns to watch the player, breathes, sways his weight
+  if (tyroneMixer) tyroneMixer.update(dt);
+  if (tyrone){
+    const dx = camera.position.x-TYRONE_POS.x, dz = camera.position.z-TYRONE_POS.z;
+    const target = Math.atan2(dx, dz);
+    const cur = tyrone.rotation.y;
+    const diff = ((target - cur + Math.PI) % (Math.PI*2)) - Math.PI;
+    tyrone.rotation.y = cur + diff * Math.min(1, dt*2.2);
+    const ud = tyrone.userData, br = Math.sin(t*1.5);
+    if (ud.chest){ ud.chest.scale.set(1.2, 0.95 + br*0.02, 0.86 + br*0.02); }
+    if (ud.head){ ud.head.position.y = ud.headBaseY + br*0.006; ud.head.rotation.z = Math.sin(t*0.6)*0.04; ud.head.rotation.x = Math.sin(t*1.5+0.5)*0.03; }
+    if (ud.lArm){ ud.lArm.rotation.z =  0.2 + Math.sin(t*1.2)*0.025; }
+    if (ud.rArm){ ud.rArm.rotation.z = -0.2 - Math.sin(t*1.2)*0.025; }
+    tyrone.position.x = TYRONE_POS.x + Math.sin(t*0.5)*0.01;   // gentle weight shift
+  }
+
+  if (chestOpen && chestLidPivot && lidAngle > -2.0){ lidAngle -= dt*2.4; chestLidPivot.rotation.x = lidAngle; }
+  if (chestOpen){
+    goldLight.intensity = 1.7 + Math.sin(t*4)*0.3;
+    goldGroup.rotation.y += dt*0.2;
+  }
+
+  const dp = dust.geometry.attributes.position;
+  for (let i=0;i<dustN;i++){ let y=dp.getY(i)-dt*0.05; if (y<0) y=WALL_H; dp.setY(i,y); dp.setX(i, dp.getX(i)+Math.sin(t+i)*0.0008); }
+  dp.needsUpdate = true;
+
+  if (controls.isLocked && !inDialogue && !gameWon){
+    if (nearTyrone()){ prompt.innerHTML='<span class="key">E</span> talk to Tyrone'; prompt.classList.add('show'); crosshair.classList.add('active'); }
+    else if (nearChest() && !chestOpen){ prompt.innerHTML='<span class="key">E</span> open the chest'; prompt.classList.add('show'); crosshair.classList.add('active'); }
+    else if (nearDoor()){ prompt.innerHTML = chestOpen ? '<span class="key">E</span> escape through the gate' : '<span class="key">E</span> try the gate'; prompt.classList.add('show'); crosshair.classList.add('active'); }
+    else { prompt.classList.remove('show'); crosshair.classList.remove('active'); }
+  } else { prompt.classList.remove('show'); crosshair.classList.remove('active'); }
+
+  composer.render();
+}
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+if (location.search.includes('debug')) window.__dbg = { camera, scene, controls, THREE, TYRONE_POS, tyrone };
+
+frame();
+</script>
+</body>
+</html>
