@@ -614,10 +614,10 @@ function buildTyrone(){
 }
 
 const TYRONE_POS = new THREE.Vector3(-4.4, 0, -0.6);
-const NEIL_POS   = new THREE.Vector3( 6.35, 0, 2.2);
+const BEN_POS   = new THREE.Vector3(-6.2, 0, 1.7);   // west wall, beside Tyrone
 let tyrone = buildTyrone();                 // stylized stand-in until the real model loads
 tyrone.position.set(TYRONE_POS.x, 0, TYRONE_POS.z); tyrone.rotation.y = Math.PI/2; scene.add(tyrone);
-let neil = null, tyroneMixer = null, neilMixer = null;
+let ben = null, tyroneMixer = null, benMixer = null;
 if (window.__dbg) window.__dbg.tyrone = tyrone;
 
 // scale to ~1.82 m, feet on floor, centred at pos; returns the scale used
@@ -677,39 +677,39 @@ function styleAvatar(m, sc, opts){
 }
 
 gltfLoader.load('assets/models/man/tyrone.glb', (gltf)=>{
-  const neilSrc = SkeletonUtils.clone(gltf.scene);   // pristine clone BEFORE Tyrone gets restyled
+  const benSrc = SkeletonUtils.clone(gltf.scene);   // pristine clone BEFORE Tyrone gets restyled
   // Tyrone — Black man, street blacks, gangster gear
   const tsc = placeAvatar(gltf.scene, TYRONE_POS);
   styleAvatar(gltf.scene, tsc, { clothes:new THREE.Color(0x4c4c4c), skin:new THREE.Color(0x5c3a26), gear:true });
   scene.remove(tyrone); scene.add(gltf.scene); tyrone = gltf.scene;
   if (window.__dbg) window.__dbg.tyrone = tyrone;
-  // Neil — chained prisoner, drab clothes, paler, faces into the room
-  const nsc = placeAvatar(neilSrc, NEIL_POS);
-  styleAvatar(neilSrc, nsc, { clothes:new THREE.Color(0x6b6256), skin:new THREE.Color(0xd9b596), gear:false });
-  neilSrc.rotation.y = -Math.PI/2;
-  scene.add(neilSrc); neil = neilSrc;
-  if (window.__dbg) window.__dbg.neil = neil;
+  // Ben — chained prisoner, drab clothes, paler, faces into the room
+  const nsc = placeAvatar(benSrc, BEN_POS);
+  styleAvatar(benSrc, nsc, { clothes:new THREE.Color(0x6b6256), skin:new THREE.Color(0xd9b596), gear:false });
+  benSrc.rotation.y = Math.PI/2;   // face into the room from the west wall (same as Tyrone)
+  scene.add(benSrc); ben = benSrc;
+  if (window.__dbg) window.__dbg.ben = ben;
   // idle animation (shared clip) on both skeletons
   gltfLoader.load('assets/models/man/anims.glb', (ag)=>{
     const idle = ag.animations.find(a=>/idle/i.test(a.name)) || ag.animations[0];
     if (idle){
       tyroneMixer = new THREE.AnimationMixer(tyrone); tyroneMixer.clipAction(idle).play();
-      neilMixer   = new THREE.AnimationMixer(neil);   neilMixer.clipAction(idle).play();
+      benMixer   = new THREE.AnimationMixer(ben);   benMixer.clipAction(idle).play();
     }
   }, undefined, ()=>{});
-}, undefined, ()=>{ /* no realistic model — keep the stylized Tyrone, no Neil */ });
+}, undefined, ()=>{ /* no realistic model — keep the stylized Tyrone, no Ben */ });
 
 const tyroneLabel = makeLabel('TYRONE'); tyroneLabel.position.set(TYRONE_POS.x, 2.05, TYRONE_POS.z); scene.add(tyroneLabel);
-const neilLabel   = makeLabel('NEIL');   neilLabel.position.set(NEIL_POS.x, 2.05, NEIL_POS.z);     scene.add(neilLabel);
+const benLabel   = makeLabel('BEN');   benLabel.position.set(BEN_POS.x, 2.05, BEN_POS.z);     scene.add(benLabel);
 colliders.push({ x:TYRONE_POS.x, z:TYRONE_POS.z, r:0.5 });
-colliders.push({ x:NEIL_POS.x,   z:NEIL_POS.z,   r:0.5 });
+colliders.push({ x:BEN_POS.x,   z:BEN_POS.z,   r:0.5 });
 const tyroneLight = new THREE.PointLight(0xffdca6, 4.5, 6, 2); tyroneLight.position.set(TYRONE_POS.x+1.2, 1.7, TYRONE_POS.z+0.7); scene.add(tyroneLight);
-const neilLight   = new THREE.PointLight(0xc2d0dc, 3.0, 5.5, 2); neilLight.position.set(NEIL_POS.x-1.0, 1.7, NEIL_POS.z-0.5); scene.add(neilLight);
-// Neil's manacles + chains bolted to the east wall behind him
+const benLight   = new THREE.PointLight(0xc2d0dc, 3.0, 5.5, 2); benLight.position.set(BEN_POS.x+1.2, 1.7, BEN_POS.z+0.6); scene.add(benLight);
+// Ben's manacles + chains bolted to the west wall behind him
 for (const dz of [-0.42, 0.42]){
-  const ax = HALF-0.12, az = NEIL_POS.z + dz;
+  const ax = -HALF+0.12, az = BEN_POS.z + dz;
   const plate = new THREE.Mesh(new THREE.BoxGeometry(0.13,0.13,0.06), ironMat); plate.position.set(ax,1.6,az); plate.castShadow = true; scene.add(plate);
-  const cuffX = NEIL_POS.x+0.3, cuffY = 0.95, cuffZ = NEIL_POS.z + dz*0.7;
+  const cuffX = BEN_POS.x-0.3, cuffY = 0.95, cuffZ = BEN_POS.z + dz*0.7;
   for (let i=0;i<8;i++){ const tt=i/7;
     const lk = new THREE.Mesh(new THREE.TorusGeometry(0.04,0.013,6,12), chainMat);
     lk.position.set(ax+(cuffX-ax)*tt, 1.6+(cuffY-1.6)*tt - Math.sin(tt*Math.PI)*0.08, az+(cuffZ-az)*tt);
@@ -813,7 +813,7 @@ function showToast(msg, ms=2600){ toast.textContent=msg; toast.classList.add('sh
 function nearChest(){ return Math.hypot(camera.position.x-0, camera.position.z+2.2) < 2.3; }
 function nearDoor(){ return camera.position.z < -HALF+2.7 && Math.abs(camera.position.x) < 1.7; }
 function nearTyrone(){ return Math.hypot(camera.position.x-TYRONE_POS.x, camera.position.z-TYRONE_POS.z) < 2.4; }
-function nearNeil(){ return !!neil && Math.hypot(camera.position.x-NEIL_POS.x, camera.position.z-NEIL_POS.z) < 2.4; }
+function nearBen(){ return !!ben && Math.hypot(camera.position.x-BEN_POS.x, camera.position.z-BEN_POS.z) < 2.4; }
 
 // --- NPC dialogue brains (offline, keyword-matched, in-character) ---
 const TYRONE = {
@@ -843,20 +843,20 @@ const TYRONE = {
     "Stay sharp. These walls got ears, and not every one of 'em is friendly.",
   ],
 };
-const NEIL = {
-  name: 'NEIL', met: false, i: 0,
-  greetFirst: "Oi— oi, you! Over here! Name's Neil. Been chained to this bloody wall so long I've named the rats. Get me out, would you? ...You can't, can you. Nobody ever can.",
+const BEN = {
+  name: 'BEN', met: false, i: 0,
+  greetFirst: "Oi— oi, you! Over here! Name's Ben. Been chained to this bloody wall so long I've named the rats. Get me out, would you? ...You can't, can you. Nobody ever can.",
   greetBack:  "Still here. Always still here. What is it, then?",
   rules: [
     { k:['chain','unchain','release','free me','loose','rope','manacle','cuff'], r:"These chains? Solid iron, mate. Pulled till my wrists bled. You'd need the gaoler's key and he's been dead three hundred years. So... no." },
     { k:['key','chest','gold','30','thirty','euro','money','pay','buy','price','cost'], r:"The key's in that chest, aye. Only opens the gate if you 'buy your way out' — thirty euro. Daylight robbery. In a dungeon. Without daylight." },
     { k:['tyrone'], r:"Tyrone? Don't trust that smooth one, all gold chains and helpful advice. Nobody gets a chain that shiny down here for nothing, I'm tellin' you." },
     { k:['gate','door','escape','out','leave','exit'], r:"Gate's on the north wall. I watch folk walk through and never look back. One day that'll be me. ...It won't. But let me have it, eh." },
-    { k:['who','name','yourself','neil'], r:"Neil. Just Neil. Wrong place, wrong century, wrong everything. 'Petty crime,' they said. Twenty years chained to a wall, I said." },
+    { k:['who','name','yourself','ben'], r:"Ben. Just Ben. Wrong place, wrong century, wrong everything. 'Petty crime,' they said. Twenty years chained to a wall, I said." },
     { k:['help','how','stuck','lost'], r:"Help YOU? I'm the one chained up, mate! ...Fine. Open the chest, pay the thirty, hit the gate. There. Now help ME. (You won't.)" },
     { k:['hello','hey','hi','oi','yo','sup','alright'], r:"Hello hello. Lovely weather for a dungeon. Bit damp. Bit eternal. Yourself?" },
     { k:['food','eat','hungry','water','drink'], r:"Don't talk to me about food. I've been dreamin' about a kebab since before you were born, probably." },
-    { k:['sorry','sad','scared','afraid','poor'], r:"S'alright. Everyone walks past eventually. Just... tell someone I was here, yeah? Neil. Two syllables. Dead easy." },
+    { k:['sorry','sad','scared','afraid','poor'], r:"S'alright. Everyone walks past eventually. Just... tell someone I was here, yeah? Ben. Two syllables. Dead easy." },
   ],
   fallbacks: [
     "Right. Sure. Whatever you say, free-walkin' person.",
@@ -917,7 +917,7 @@ dlgInput.addEventListener('keydown', e=>{
 function tryInteract(){
   if (!controls.isLocked) return;
   if (nearTyrone()){ openDialogue(TYRONE); return; }
-  if (nearNeil()){ openDialogue(NEIL); return; }
+  if (nearBen()){ openDialogue(BEN); return; }
   if (nearChest() && !chestOpen){
     chestOpen = true;
     showToast('A KEY:  “Buy your way out — €30”', 4200);
@@ -989,8 +989,8 @@ function frame(){
     tyrone.position.x = TYRONE_POS.x + Math.sin(t*0.5)*0.01;   // gentle weight shift
   }
 
-  // Neil just idles against the wall (he's chained — he can't turn)
-  if (neilMixer) neilMixer.update(dt);
+  // Ben just idles against the wall (he's chained — he can't turn)
+  if (benMixer) benMixer.update(dt);
 
   if (chestOpen && chestLidPivot && lidAngle > -2.0){ lidAngle -= dt*2.4; chestLidPivot.rotation.x = lidAngle; }
   if (chestOpen){
@@ -1006,7 +1006,7 @@ function frame(){
 
   if (controls.isLocked && !inDialogue && !gameWon){
     if (nearTyrone()){ prompt.innerHTML='<span class="key">E</span> talk to Tyrone'; prompt.classList.add('show'); crosshair.classList.add('active'); }
-    else if (nearNeil()){ prompt.innerHTML='<span class="key">E</span> talk to Neil'; prompt.classList.add('show'); crosshair.classList.add('active'); }
+    else if (nearBen()){ prompt.innerHTML='<span class="key">E</span> talk to Ben'; prompt.classList.add('show'); crosshair.classList.add('active'); }
     else if (nearChest() && !chestOpen){ prompt.innerHTML='<span class="key">E</span> open the chest'; prompt.classList.add('show'); crosshair.classList.add('active'); }
     else if (nearDoor()){ prompt.innerHTML = chestOpen ? '<span class="key">E</span> escape through the gate' : '<span class="key">E</span> try the gate'; prompt.classList.add('show'); crosshair.classList.add('active'); }
     else { prompt.classList.remove('show'); crosshair.classList.remove('active'); }
@@ -1021,7 +1021,7 @@ addEventListener('resize', ()=>{
   composer.setSize(innerWidth, innerHeight);
 });
 
-if (location.search.includes('debug')) window.__dbg = { camera, scene, controls, THREE, TYRONE_POS, NEIL_POS, tyrone, neil, keyGroup, priceSign, goldGroup, openChest:()=>{ keyGroup.visible=true; priceSign.visible=true; goldGroup.visible=true; } };
+if (location.search.includes('debug')) window.__dbg = { camera, scene, controls, THREE, TYRONE_POS, BEN_POS, tyrone, ben, keyGroup, priceSign, goldGroup, openChest:()=>{ keyGroup.visible=true; priceSign.visible=true; goldGroup.visible=true; } };
 
 frame();
 </script>
