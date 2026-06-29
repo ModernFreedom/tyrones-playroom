@@ -614,7 +614,7 @@ function buildTyrone(){
 }
 
 const TYRONE_POS = new THREE.Vector3(-4.4, 0, -0.6);
-const BEN_POS   = new THREE.Vector3(-6.2, 0, 1.7);   // west wall, beside Tyrone
+const BEN_POS   = new THREE.Vector3(-6.55, 0, 1.7);   // sitting against the west wall, beside Tyrone
 let tyrone = buildTyrone();                 // stylized stand-in until the real model loads
 tyrone.position.set(TYRONE_POS.x, 0, TYRONE_POS.z); tyrone.rotation.y = Math.PI/2; scene.add(tyrone);
 let ben = null, tyroneMixer = null, benMixer = null;
@@ -676,6 +676,31 @@ function styleAvatar(m, sc, opts){
   }
 }
 
+// Tunable seated-pose constants for Ben (radians + metres). Exposed on __dbg for tuning.
+const BEN_SIT = { hip:1.5, knee:-0.32, ankle:0.15, spine:0.16, neck:0.18, armDrop:1.0, armBend:0.45, spread:0.14, drop:-0.80 };
+function seatBen(){
+  if (!ben) return;
+  const find = (suf)=>{ let b=null; const re=new RegExp(suf+'$'); ben.traverse(o=>{ if(o.isBone && re.test(o.name)) b=o; }); return b; };
+  const set = (suf,x,y,z)=>{ const b=find(suf); if(b) b.rotation.set(x,y||0,z||0); };
+  const S = BEN_SIT;
+  // thighs forward (hip flex), knees bent so shins lie forward along the floor
+  set('LeftUpLeg',  S.hip,  0.05,  S.spread);
+  set('RightUpLeg', S.hip, -0.05, -S.spread);
+  set('LeftLeg',    S.knee, 0, 0);
+  set('RightLeg',   S.knee, 0, 0);
+  set('LeftFoot',   S.ankle, 0, 0);
+  set('RightFoot',  S.ankle, 0, 0);
+  // torso resting back against the wall, head tipped down a touch (defeated)
+  set('Spine',      S.spine, 0, 0);
+  set('Neck',       S.neck, 0, 0);
+  // arms hang down at his sides, hands resting near his hips
+  set('LeftArm',  0, 0,  S.armDrop);
+  set('RightArm', 0, 0, -S.armDrop);
+  set('LeftForeArm',  0,  S.armBend, 0);
+  set('RightForeArm', 0, -S.armBend, 0);
+  ben.position.y = S.drop;   // lower the whole figure so the seat rests on the floor
+}
+
 gltfLoader.load('assets/models/man/tyrone.glb', (gltf)=>{
   const benSrc = SkeletonUtils.clone(gltf.scene);   // pristine clone BEFORE Tyrone gets restyled
   // Tyrone — Black man, street blacks, gangster gear
@@ -689,33 +714,42 @@ gltfLoader.load('assets/models/man/tyrone.glb', (gltf)=>{
   benSrc.rotation.y = Math.PI/2;   // face into the room from the west wall (same as Tyrone)
   scene.add(benSrc); ben = benSrc;
   if (window.__dbg) window.__dbg.ben = ben;
-  // idle animation (shared clip) on both skeletons
+  // Tyrone breathes (idle clip); Ben is posed sitting on the floor, chained (static pose).
   gltfLoader.load('assets/models/man/anims.glb', (ag)=>{
     const idle = ag.animations.find(a=>/idle/i.test(a.name)) || ag.animations[0];
-    if (idle){
-      tyroneMixer = new THREE.AnimationMixer(tyrone); tyroneMixer.clipAction(idle).play();
-      benMixer   = new THREE.AnimationMixer(ben);   benMixer.clipAction(idle).play();
-    }
+    if (idle){ tyroneMixer = new THREE.AnimationMixer(tyrone); tyroneMixer.clipAction(idle).play(); }
   }, undefined, ()=>{});
+  seatBen();
+  buildBenChains();
 }, undefined, ()=>{ /* no realistic model — keep the stylized Tyrone, no Ben */ });
 
 const tyroneLabel = makeLabel('TYRONE'); tyroneLabel.position.set(TYRONE_POS.x, 2.05, TYRONE_POS.z); scene.add(tyroneLabel);
-const benLabel   = makeLabel('BEN');   benLabel.position.set(BEN_POS.x, 2.05, BEN_POS.z);     scene.add(benLabel);
+const benLabel   = makeLabel('BEN');   benLabel.position.set(BEN_POS.x+0.25, 1.35, BEN_POS.z);     scene.add(benLabel);
 colliders.push({ x:TYRONE_POS.x, z:TYRONE_POS.z, r:0.5 });
 colliders.push({ x:BEN_POS.x,   z:BEN_POS.z,   r:0.5 });
 const tyroneLight = new THREE.PointLight(0xffdca6, 4.5, 6, 2); tyroneLight.position.set(TYRONE_POS.x+1.2, 1.7, TYRONE_POS.z+0.7); scene.add(tyroneLight);
-const benLight   = new THREE.PointLight(0xc2d0dc, 3.0, 5.5, 2); benLight.position.set(BEN_POS.x+1.2, 1.7, BEN_POS.z+0.6); scene.add(benLight);
-// Ben's manacles + chains bolted to the west wall behind him
-for (const dz of [-0.42, 0.42]){
-  const ax = -HALF+0.12, az = BEN_POS.z + dz;
-  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.13,0.13,0.06), ironMat); plate.position.set(ax,1.6,az); plate.castShadow = true; scene.add(plate);
-  const cuffX = BEN_POS.x-0.3, cuffY = 0.95, cuffZ = BEN_POS.z + dz*0.7;
-  for (let i=0;i<8;i++){ const tt=i/7;
-    const lk = new THREE.Mesh(new THREE.TorusGeometry(0.04,0.013,6,12), chainMat);
-    lk.position.set(ax+(cuffX-ax)*tt, 1.6+(cuffY-1.6)*tt - Math.sin(tt*Math.PI)*0.08, az+(cuffZ-az)*tt);
-    lk.rotation.x = Math.PI/2; lk.rotation.z = (i%2)*Math.PI/2; lk.castShadow = true; scene.add(lk);
+const benLight   = new THREE.PointLight(0xc2d0dc, 3.0, 5.5, 2); benLight.position.set(BEN_POS.x+1.1, 1.1, BEN_POS.z+0.5); scene.add(benLight);
+// Ben's manacles + chains: bolted to the west wall, running down to his cuffed wrists.
+// Built after he's posed so the cuffs land on his actual (seated) wrist positions.
+function buildBenChains(){
+  if (!ben) return;
+  ben.updateWorldMatrix(true, true);
+  const findBone = (suf)=>{ let b=null; const re=new RegExp(suf+'$'); ben.traverse(o=>{ if(o.isBone && re.test(o.name)) b=o; }); return b; };
+  const hands = [findBone('LeftHand'), findBone('RightHand')].filter(Boolean);
+  for (const h of hands){
+    const w = new THREE.Vector3(); h.getWorldPosition(w);
+    const cuffX = w.x, cuffY = Math.max(0.2, w.y), cuffZ = w.z;
+    // iron ring bolted to the wall, a little above the wrist
+    const ax = -HALF+0.1, ay = 1.0, az = cuffZ;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.13,0.13,0.06), ironMat); plate.position.set(ax,ay,az); plate.castShadow = true; scene.add(plate);
+    const N = 9;
+    for (let i=0;i<N;i++){ const tt=i/(N-1);
+      const lk = new THREE.Mesh(new THREE.TorusGeometry(0.04,0.013,6,12), chainMat);
+      lk.position.set(ax+(cuffX-ax)*tt, ay+(cuffY-ay)*tt - Math.sin(tt*Math.PI)*0.10, az+(cuffZ-az)*tt);
+      lk.rotation.x = Math.PI/2; lk.rotation.z = (i%2)*Math.PI/2; lk.castShadow = true; scene.add(lk);
+    }
+    const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.055,0.018,8,16), ironMat); cuff.position.set(cuffX,cuffY,cuffZ); cuff.castShadow = true; scene.add(cuff);
   }
-  const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.06,0.02,8,16), ironMat); cuff.position.set(cuffX,cuffY,cuffZ); cuff.rotation.y = Math.PI/2; cuff.castShadow = true; scene.add(cuff);
 }
 
 // ---------------------------------------------------------------------------
@@ -1021,7 +1055,7 @@ addEventListener('resize', ()=>{
   composer.setSize(innerWidth, innerHeight);
 });
 
-if (location.search.includes('debug')) window.__dbg = { camera, scene, controls, THREE, TYRONE_POS, BEN_POS, tyrone, ben, keyGroup, priceSign, goldGroup, openChest:()=>{ keyGroup.visible=true; priceSign.visible=true; goldGroup.visible=true; } };
+if (location.search.includes('debug')) window.__dbg = { camera, scene, controls, THREE, TYRONE_POS, BEN_POS, tyrone, ben, keyGroup, priceSign, goldGroup, BEN_SIT, seatBen, get benObj(){return ben;}, openChest:()=>{ keyGroup.visible=true; priceSign.visible=true; goldGroup.visible=true; } };
 
 frame();
 </script>
